@@ -19,14 +19,14 @@ import os
 import streamlit as st
 import pandas as pd
 
-from src.data_loader import load_movies, load_ratings, build_similarity_matrix, build_user_movie_matrix
-from src.recommender  import (
+from data_loader import load_movies, load_ratings, build_similarity_matrix, build_user_movie_matrix
+from recommender import (
     get_recommendations_by_movie,
     get_recommendations_by_titles,
     get_recommendations_for_user,
     search_movies,
 )
-from src.tmdb_client import get_poster_url, get_tmdb_metadata, api_key_configured
+from tmdb_client import get_poster_url, get_tmdb_metadata, api_key_configured
 
 
 # ──────────────────────────────────────────────
