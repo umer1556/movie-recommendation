@@ -15,8 +15,6 @@ The app has three logical sections rendered on one page:
 import sys
 import os
 
-# Make 'src' importable regardless of working directory
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import streamlit as st
 import pandas as pd
