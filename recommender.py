@@ -1,7 +1,7 @@
 """
-recommender.py
+recommender.py (UPDATED)
 --------------
-Two recommendation strategies:
+Two recommendation strategies + actor search:
 
 1. Content-Based Filtering (CBF)
    - Uses the pre-computed cosine similarity matrix from data_loader.
@@ -12,6 +12,10 @@ Two recommendation strategies:
    - Pearson correlation between users on the ratings matrix.
    - get_recommendations_for_user()
    - Falls back to CBF if ratings data is too sparse.
+
+3. Actor Search [NEW]
+   - search_by_actor() – find all movies with a specific actor
+   - sort_movies() – sort results by title or rating
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from typing import Optional
+import difflib  # For fuzzy matching
 
 
 # ──────────────────────────────────────────────
@@ -36,7 +41,7 @@ def get_recommendations_by_movie(
 
     Parameters
     ----------
-    title            : Movie title (case-insensitive, partial match supported).
+    title            : Movie title (case-insensitive, fuzzy matching supported).
     movies_df        : DataFrame produced by data_loader.load_movies().
     similarity_matrix: np.ndarray from data_loader.build_similarity_matrix().
     n                : Number of recommendations to return.
@@ -118,6 +123,68 @@ def get_recommendations_by_titles(
     result["similarity_score"] = scores
 
     return result.reset_index(drop=True)
+
+
+# ──────────────────────────────────────────────
+# Actor Search [NEW]
+# ──────────────────────────────────────────────
+
+def search_by_actor(query: str, movies_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Search for all movies by an actor name.
+    Returns all movies where the actor appears in the cast.
+    
+    Parameters
+    ----------
+    query     : Actor name (case-insensitive, partial match supported)
+    movies_df : Full movie DataFrame
+    
+    Returns
+    -------
+    DataFrame with: title, year, genre, overview, cast
+    Sorted by year (newest first)
+    """
+    q = query.lower().strip()
+    if not q:
+        return pd.DataFrame()
+    
+    # Find movies where query appears in cast (case-insensitive)
+    mask = movies_df["cast"].str.lower().str.contains(q, regex=False, na=False)
+    result = movies_df[mask][["title", "year", "genre", "overview", "cast", "movie_id"]].copy()
+    
+    if result.empty:
+        return result
+    
+    # Sort by year (newest first)
+    result = result.sort_values("year", ascending=False)
+    
+    return result.reset_index(drop=True)
+
+
+def sort_movies(movies_df: pd.DataFrame, sort_by: str = "title") -> pd.DataFrame:
+    """
+    Sort movies alphabetically or by rating (if available).
+    
+    Parameters
+    ----------
+    movies_df : DataFrame to sort
+    sort_by   : 'title' (A-Z) or 'rating' (high to low)
+    
+    Returns
+    -------
+    Sorted DataFrame
+    """
+    if movies_df.empty:
+        return movies_df
+    
+    if sort_by == "title":
+        return movies_df.sort_values("title", ascending=True).reset_index(drop=True)
+    elif sort_by == "rating" and "similarity_score" in movies_df.columns:
+        return movies_df.sort_values("similarity_score", ascending=False).reset_index(drop=True)
+    elif sort_by == "rating" and "predicted_rating" in movies_df.columns:
+        return movies_df.sort_values("predicted_rating", ascending=False).reset_index(drop=True)
+    else:
+        return movies_df
 
 
 # ──────────────────────────────────────────────
@@ -225,20 +292,34 @@ def get_recommendations_for_user(
 def _find_movie_index(title: str, movies_df: pd.DataFrame) -> Optional[int]:
     """
     Find DataFrame row index for a movie title.
-    Tries exact match first, then case-insensitive, then substring.
+    Uses fuzzy matching to handle spelling variations.
+    
+    Strategy (in order):
+    1. Exact match (case-insensitive)
+    2. Substring match
+    3. Fuzzy match (difflib) – handles typos
+    
     Returns None if nothing matches.
     """
     title_lower = title.lower().strip()
 
-    # Exact (case-insensitive) match
+    # 1. Exact (case-insensitive) match
     exact = movies_df[movies_df["title_lower"] == title_lower]
     if not exact.empty:
         return exact.index[0]
 
-    # Substring match (handles 'Dark Knight' → 'The Dark Knight')
+    # 2. Substring match (handles 'Dark Knight' → 'The Dark Knight')
     partial = movies_df[movies_df["title_lower"].str.contains(title_lower, regex=False)]
     if not partial.empty:
         return partial.index[0]
+
+    # 3. Fuzzy match using difflib (handles typos like 'Incepton' → 'Inception')
+    all_titles = movies_df["title_lower"].tolist()
+    close_matches = difflib.get_close_matches(title_lower, all_titles, n=1, cutoff=0.6)
+    if close_matches:
+        matched_title = close_matches[0]
+        idx = movies_df[movies_df["title_lower"] == matched_title].index[0]
+        return idx
 
     return None
 
