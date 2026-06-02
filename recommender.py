@@ -355,3 +355,5 @@ def search_movies(query: str, movies_df: pd.DataFrame, max_results: int = 8) -> 
         movies_df["keywords"].str.lower().str.contains(q, regex=False)
     )
     return movies_df[mask][["title", "year", "genre"]].head(max_results)
+
+# test update
