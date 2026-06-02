@@ -7,12 +7,11 @@ Now with: Actor search, improved UI, fuzzy matching.
 Run locally:
     streamlit run main.py
 """
-
 import streamlit as st
 import pandas as pd
 
 from data_loader import load_movies, load_ratings, build_similarity_matrix, build_user_movie_matrix
-from recommender  import (
+from recommender import (
     get_recommendations_by_movie,
     get_recommendations_by_titles,
     get_recommendations_for_user,
