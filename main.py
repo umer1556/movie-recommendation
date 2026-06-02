@@ -1,29 +1,23 @@
 """
-main.py
+main.py (UPDATED)
 -------
 Streamlit entry point for the Movie Recommendation System.
+Now with: Actor search, improved UI, fuzzy matching.
 
 Run locally:
     streamlit run main.py
-
-The app has three logical sections rendered on one page:
-  1. Sidebar  – app branding, user-preference panel, CF user selector
-  2. Home     – search bar + favourite-movies multi-select
-  3. Results  – recommendation cards (poster + metadata)
 """
-
-import sys
-import os
-
 
 import streamlit as st
 import pandas as pd
 
 from data_loader import load_movies, load_ratings, build_similarity_matrix, build_user_movie_matrix
-from recommender import (
+from recommender  import (
     get_recommendations_by_movie,
     get_recommendations_by_titles,
     get_recommendations_for_user,
+    search_by_actor,
+    sort_movies,
     search_movies,
 )
 from tmdb_client import get_poster_url, get_tmdb_metadata, api_key_configured
@@ -42,65 +36,130 @@ st.set_page_config(
 
 
 # ──────────────────────────────────────────────
-# Custom CSS  (minimal – keeps it readable)
+# Modern CSS Styling
 # ──────────────────────────────────────────────
 
 st.markdown(
     """
     <style>
-        /* Card container */
-        .movie-card {
-            background: #1e1e2e;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 8px;
-            border: 1px solid #2a2a3e;
-            transition: border-color 0.2s;
+        /* Main background */
+        [data-testid="stAppViewContainer"] {
+            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%);
         }
-        .movie-card:hover { border-color: #e50914; }
 
-        /* Score badge */
+        /* Card styles */
+        .movie-card {
+            background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e94560;
+            box-shadow: 0 8px 32px rgba(233, 69, 96, 0.1);
+            transition: all 0.3s ease;
+        }
+        .movie-card:hover {
+            border-color: #ff6b6b;
+            box-shadow: 0 12px 48px rgba(233, 69, 96, 0.25);
+            transform: translateY(-4px);
+        }
+
+        /* Score badges */
         .score-badge {
             display: inline-block;
-            background: #e50914;
+            background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
             color: white;
-            padding: 2px 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3);
+        }
+
+        /* Genre tags */
+        .genre-tag {
+            display: inline-block;
+            background: rgba(233, 69, 96, 0.15);
+            color: #ff6b6b;
+            padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 600;
-        }
-
-        /* Genre tag */
-        .genre-tag {
-            display: inline-block;
-            background: #2a2a3e;
-            color: #a0a0c0;
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.72rem;
-            margin: 2px;
+            margin: 4px 4px 4px 0;
+            border: 1px solid #e94560;
         }
 
         /* Section headers */
         .section-header {
-            font-size: 1.4rem;
-            font-weight: 700;
+            font-size: 1.8rem;
+            font-weight: 800;
             color: #ffffff;
-            border-left: 4px solid #e50914;
-            padding-left: 10px;
-            margin: 20px 0 12px 0;
+            background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 24px 0 16px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         /* Sidebar branding */
         .sidebar-brand {
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: #e50914;
-            letter-spacing: -0.5px;
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            margin-bottom: 12px;
         }
 
-        /* Hide Streamlit default footer */
+        /* Buttons */
+        .stButton > button {
+            background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            padding: 10px 20px;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3);
+            transition: all 0.3s ease;
+        }
+        .stButton > button:hover {
+            box-shadow: 0 8px 25px rgba(233, 69, 96, 0.5);
+            transform: translateY(-2px);
+        }
+
+        /* Input fields */
+        input, textarea {
+            background-color: #1a1a2e !important;
+            color: white !important;
+            border: 1px solid #e94560 !important;
+            border-radius: 8px !important;
+        }
+        input::placeholder {
+            color: #999 !important;
+        }
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] button {
+            background-color: #16213e;
+            color: #999;
+            border-bottom: 2px solid transparent;
+        }
+        .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+            color: #ff6b6b;
+            border-bottom: 2px solid #e94560;
+        }
+
+        /* Hide footer */
         footer { visibility: hidden; }
+        
+        /* Text colors */
+        h1, h2, h3 { color: #ffffff; }
+        p { color: #ccc; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -108,10 +167,10 @@ st.markdown(
 
 
 # ──────────────────────────────────────────────
-# Data loading  (cached – runs once per session)
+# Data loading
 # ──────────────────────────────────────────────
 
-@st.cache_resource(show_spinner="Loading movie database…")
+@st.cache_resource(show_spinner="🎬 Loading movie database…")
 def get_data():
     """Load all data and pre-compute similarity matrix."""
     movies_df         = load_movies()
@@ -132,15 +191,15 @@ ALL_TITLES = movies_df["title"].sort_values().tolist()
 
 
 # ──────────────────────────────────────────────
-# Session state initialisation
+# Session state
 # ──────────────────────────────────────────────
 
 defaults = {
-    "favourites":       [],       # list of movie titles the user likes
-    "last_search":      "",       # last typed search query
-    "recommendations":  None,     # cached recommendations DataFrame
-    "rec_mode":         "search", # 'search' | 'favourites' | 'cf'
-    "selected_user":    None,     # user_id for CF mode
+    "favourites":       [],
+    "last_search":      "",
+    "recommendations":  None,
+    "rec_mode":         "search",
+    "selected_user":    None,
 }
 for key, val in defaults.items():
     if key not in st.session_state:
@@ -153,38 +212,29 @@ for key, val in defaults.items():
 
 with st.sidebar:
     st.markdown('<div class="sidebar-brand">🎬 CineMatch</div>', unsafe_allow_html=True)
-    st.caption("Personalised movie recommendations powered by content similarity.")
+    st.caption("✨ Discover movies you'll love")
     st.divider()
 
-    # ── TMDB status ──
-    if api_key_configured():
-        st.success("🖼 TMDB posters enabled", icon="✅")
-    else:
-        st.info(
-            "Add **TMDB_API_KEY** to `.streamlit/secrets.toml` to enable movie posters.",
-            icon="ℹ️",
-        )
-    st.divider()
-
-    # ── Recommendation mode ──
-    st.markdown("#### Recommendation Mode")
+    # Recommendation mode
+    st.markdown("#### 🎯 What would you like to do?")
     mode = st.radio(
         label="mode",
-        options=["🔍 Search by title", "❤️ From my favourites", "👥 Collaborative (CF)"],
+        options=["🔍 Search Movies", "🎭 Find by Actor", "❤️ My Favourites", "👥 Similar Users"],
         label_visibility="collapsed",
     )
     st.session_state["rec_mode"] = (
         "search"     if "Search"  in mode else
-        "favourites" if "favour"  in mode else
+        "actor"      if "Actor"   in mode else
+        "favourites" if "Favour"  in mode else
         "cf"
     )
 
     st.divider()
 
-    # ── Favourites management ──
-    st.markdown("#### My Favourites")
+    # Favourites management
+    st.markdown("#### 💕 My Favourites")
     new_fav = st.selectbox(
-        "Add a movie to your list",
+        "Add a movie",
         options=[""] + [t for t in ALL_TITLES if t not in st.session_state["favourites"]],
         key="fav_picker",
     )
@@ -193,60 +243,58 @@ with st.sidebar:
         st.rerun()
 
     if st.session_state["favourites"]:
-        st.write("Your list:")
+        st.write(f"**{len(st.session_state['favourites'])} in your list:**")
         for i, fav in enumerate(st.session_state["favourites"]):
             col_fav, col_rm = st.columns([4, 1])
-            col_fav.markdown(f"🎥 {fav}")
-            if col_rm.button("✕", key=f"rm_{i}", help=f"Remove {fav}"):
+            col_fav.markdown(f"🎥 *{fav}*")
+            if col_rm.button("✕", key=f"rm_{i}"):
                 st.session_state["favourites"].pop(i)
                 st.rerun()
 
-        if st.button("Clear all favourites", use_container_width=True):
+        if st.button("🗑 Clear all", use_container_width=True):
             st.session_state["favourites"] = []
             st.rerun()
     else:
-        st.caption("No favourites yet. Add titles above.")
+        st.caption("No favourites yet")
 
     st.divider()
-
-    # ── Number of recommendations ──
-    n_recs = st.slider("Recommendations to show", min_value=3, max_value=15, value=6)
+    n_recs = st.slider("📊 Results to show", 3, 15, 6)
 
 
 # ──────────────────────────────────────────────
 # Main content
 # ──────────────────────────────────────────────
 
-st.markdown("## 🎬 CineMatch")
-st.markdown("Find movies you'll love based on what you already enjoy.")
+st.markdown('<div class="section-header">🎬 CineMatch</div>', unsafe_allow_html=True)
+st.markdown("**Your AI-powered movie discovery engine** — find films based on what you love.")
 st.divider()
 
 rec_mode = st.session_state["rec_mode"]
 
-# ── Search Mode ──
+# ── SEARCH MODE ──
 if rec_mode == "search":
-    st.markdown('<div class="section-header">Search by Movie Title</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🔍 Search by Movie Title</div>', unsafe_allow_html=True)
 
     search_query = st.text_input(
-        label="Type a movie title",
-        placeholder="e.g. Inception, The Dark Knight…",
+        label="Movie title",
+        placeholder="e.g. Inception, The Dark Knight, Parasite…",
         value=st.session_state["last_search"],
     )
 
-    col_search, col_clear = st.columns([2, 1])
+    col1, col2 = st.columns([3, 1])
 
-    with col_search:
-        run_search = st.button("Get Recommendations", type="primary", use_container_width=True)
+    with col1:
+        run_search = st.button("🎯 Get Recommendations", type="primary", use_container_width=True)
 
-    with col_clear:
-        if st.button("Clear", use_container_width=True):
+    with col2:
+        if st.button("🔄 Clear", use_container_width=True):
             st.session_state["last_search"] = ""
             st.session_state["recommendations"] = None
             st.rerun()
 
     if run_search and search_query:
         st.session_state["last_search"] = search_query
-        with st.spinner("Finding similar movies…"):
+        with st.spinner("🔍 Analyzing similarity…"):
             try:
                 recs = get_recommendations_by_movie(
                     title=search_query,
@@ -258,25 +306,58 @@ if rec_mode == "search":
                 st.session_state["rec_mode_used"] = "cbf_single"
             except ValueError as e:
                 st.warning(f"⚠️ {e}")
-
-                # Suggest close matches
                 matches = search_movies(search_query, movies_df, max_results=5)
                 if not matches.empty:
-                    st.markdown("**Did you mean one of these?**")
+                    st.markdown("**Try one of these:**")
                     for _, row in matches.iterrows():
                         if st.button(f"📽 {row['title']} ({row['year']})", key=f"suggest_{row['title']}"):
                             st.session_state["last_search"] = row["title"]
                             st.rerun()
 
-# ── Favourites Mode ──
+# ── ACTOR SEARCH MODE [NEW] ──
+elif rec_mode == "actor":
+    st.markdown('<div class="section-header">🎭 Find Movies by Actor</div>', unsafe_allow_html=True)
+
+    actor_query = st.text_input(
+        label="Actor name",
+        placeholder="e.g. Leonardo DiCaprio, Morgan Freeman…",
+    )
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        run_actor_search = st.button("🎬 Find Movies", type="primary", use_container_width=True)
+
+    with col2:
+        sort_option = st.radio("Sort by", ["Title (A-Z)", "Year (Newest)"], horizontal=True)
+
+    with col3:
+        if st.button("🔄 Clear", use_container_width=True):
+            st.session_state["recommendations"] = None
+            st.rerun()
+
+    if run_actor_search and actor_query:
+        with st.spinner("🔍 Searching for actor…"):
+            recs = search_by_actor(actor_query, movies_df)
+            if recs.empty:
+                st.warning(f"No movies found with actor '{actor_query}'")
+            else:
+                # Sort results
+                if sort_option == "Title (A-Z)":
+                    recs = recs.sort_values("title", ascending=True).reset_index(drop=True)
+
+                st.session_state["recommendations"] = recs
+                st.session_state["rec_mode_used"] = "actor"
+
+# ── FAVOURITES MODE ──
 elif rec_mode == "favourites":
-    st.markdown('<div class="section-header">Recommendations from Your Favourites</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">❤️ Recommendations from Your Favourites</div>', unsafe_allow_html=True)
 
     if not st.session_state["favourites"]:
-        st.info("Add movies to your favourites list in the sidebar first.", icon="👈")
+        st.info("👈 Add movies to your favourites in the sidebar first")
     else:
-        st.markdown(f"**Based on:** {', '.join(st.session_state['favourites'])}")
-        with st.spinner("Blending your taste profile…"):
+        st.markdown(f"**Based on:** {', '.join([f'*{t}*' for t in st.session_state['favourites']])}")
+        with st.spinner("🧠 Blending your taste profile…"):
             try:
                 recs = get_recommendations_by_titles(
                     titles=st.session_state["favourites"],
@@ -289,27 +370,23 @@ elif rec_mode == "favourites":
             except ValueError as e:
                 st.warning(str(e))
 
-# ── Collaborative Filtering Mode ──
+# ── COLLABORATIVE FILTERING MODE ──
 elif rec_mode == "cf":
-    st.markdown('<div class="section-header">Collaborative Filtering (User-Based)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">👥 Similar User Recommendations</div>', unsafe_allow_html=True)
 
     if user_movie_matrix.empty:
-        st.warning(
-            "ratings.csv not found or is empty. "
-            "Collaborative filtering is unavailable — switch to Search or Favourites mode.",
-            icon="⚠️",
-        )
+        st.warning("📊 Ratings data not available — use Search or Favourites mode instead")
     else:
         available_users = sorted(user_movie_matrix.index.tolist())
         selected_user = st.selectbox(
-            "Select a user profile to simulate",
+            "Simulate recommendations for user:",
             options=available_users,
             index=0,
         )
         st.session_state["selected_user"] = selected_user
 
-        if st.button("Get CF Recommendations", type="primary"):
-            with st.spinner("Analysing similar users…"):
+        if st.button("👤 Get User-Based Recommendations", type="primary", use_container_width=True):
+            with st.spinner("🔍 Finding similar users…"):
                 recs = get_recommendations_for_user(
                     user_id=selected_user,
                     user_movie_matrix=user_movie_matrix,
@@ -320,8 +397,7 @@ elif rec_mode == "cf":
                 st.session_state["recommendations"] = recs
                 st.session_state["rec_mode_used"] = "cf"
 
-        # Show what this simulated user has already rated
-        with st.expander("📊 This user's ratings"):
+        with st.expander("📊 User's Ratings"):
             user_rated = user_movie_matrix.loc[selected_user].dropna().sort_values(ascending=False)
             st.dataframe(
                 user_rated.reset_index().rename(columns={"index": "Movie", selected_user: "Rating"}),
@@ -331,107 +407,89 @@ elif rec_mode == "cf":
 
 
 # ──────────────────────────────────────────────
-# Results rendering
+# Results Display
 # ──────────────────────────────────────────────
 
 recs: pd.DataFrame | None = st.session_state.get("recommendations")
 
 if recs is not None and not recs.empty:
     mode_used = st.session_state.get("rec_mode_used", "cbf_single")
-    label_map = {
-        "cbf_single": "Content Similarity",
-        "cbf_multi":  "Blended Taste Score",
-        "cf":         "Predicted Rating",
-    }
-    score_col  = "similarity_score" if mode_used != "cf" else "predicted_rating"
-    score_label = label_map.get(mode_used, "Score")
+    
+    # Determine score column and label
+    if mode_used == "actor":
+        st.markdown(f'<div class="section-header">📽 Found {len(recs)} Movie(s)</div>', unsafe_allow_html=True)
+        show_score = False
+    else:
+        label_map = {
+            "cbf_single": "Content Similarity",
+            "cbf_multi":  "Blended Taste Score",
+            "cf":         "Predicted Rating",
+        }
+        score_label = label_map.get(mode_used, "Score")
+        st.markdown(f'<div class="section-header">✨ Top Results — {score_label}</div>', unsafe_allow_html=True)
+        show_score = True
 
-    st.markdown(f'<div class="section-header">Recommendations — {score_label}</div>', unsafe_allow_html=True)
-
-    # Render cards in a 3-column grid
+    # 3-column grid
     cols = st.columns(3)
 
     for i, (_, row) in enumerate(recs.iterrows()):
         col = cols[i % 3]
         with col:
-            # Fetch poster (fast – cached by lru_cache)
-            if api_key_configured():
-                meta = get_tmdb_metadata(row["title"], int(row.get("year", 0)))
-                poster_url   = meta["poster_url"]
-                vote_average = meta["vote_average"]
-            else:
-                poster_url   = None
-                vote_average = 0.0
-
             with st.container():
-                # Poster
+                # Poster image
+                if api_key_configured():
+                    meta = get_tmdb_metadata(row["title"], int(row.get("year", 0)))
+                    poster_url = meta["poster_url"]
+                else:
+                    poster_url = None
+
                 if poster_url:
                     st.image(poster_url, use_column_width=True)
 
-                # Title + year
-                st.markdown(f"**{row['title']}** ({int(row['year'])})")
+                # Title and year
+                st.markdown(f"### {row['title']}")
+                st.caption(f"📅 {int(row['year'])}")
 
                 # Genre tags
-                genres = row.get("genre", "").split()
-                genre_html = " ".join(
-                    f'<span class="genre-tag">{g.strip()}</span>'
-                    for g in row.get("genre", "").replace(",", " ").split()
-                    if g.strip()
-                )
-                st.markdown(genre_html, unsafe_allow_html=True)
+                if "genre" in row and row["genre"]:
+                    genre_html = " ".join(
+                        f'<span class="genre-tag">{g.strip()}</span>'
+                        for g in str(row.get("genre", "")).split()
+                        if g.strip()
+                    )
+                    st.markdown(genre_html, unsafe_allow_html=True)
 
                 # Score badge
-                score_val = row.get(score_col, 0.0)
-                st.markdown(
-                    f'<span class="score-badge">{score_label}: {score_val:.2f}</span>',
-                    unsafe_allow_html=True,
-                )
-
-                if vote_average > 0:
+                if show_score and "similarity_score" in row:
+                    score_val = row["similarity_score"]
                     st.markdown(
-                        f'<span class="score-badge" style="background:#f5c518; color:#000">⭐ {vote_average:.1f}</span>',
+                        f'<span class="score-badge">Score: {score_val:.2f}</span>',
+                        unsafe_allow_html=True,
+                    )
+                elif show_score and "predicted_rating" in row:
+                    score_val = row["predicted_rating"]
+                    st.markdown(
+                        f'<span class="score-badge">Predicted: {score_val:.2f}⭐</span>',
                         unsafe_allow_html=True,
                     )
 
-                # Overview (collapsed to save space)
-                with st.expander("Overview"):
-                    st.caption(row.get("overview", "No overview available."))
+                # Overview
+                with st.expander("📖 Plot"):
+                    st.caption(row.get("overview", "No description available"))
 
-                # Quick add to favourites
+                # Cast info (if available)
+                if "cast" in row and row["cast"]:
+                    with st.expander("👥 Cast"):
+                        st.caption(row["cast"])
+
+                # Add to favourites button
                 if row["title"] not in st.session_state["favourites"]:
-                    if st.button(f"+ Add to Favourites", key=f"add_fav_{i}"):
+                    if st.button(f"💕 Add to Favourites", key=f"add_fav_{i}", use_container_width=True):
                         st.session_state["favourites"].append(row["title"])
-                        st.toast(f"Added '{row['title']}' to favourites!", icon="❤️")
+                        st.toast(f"Added to favourites! ❤️", icon="✅")
                         st.rerun()
 
                 st.markdown("---")
 
 elif recs is not None and recs.empty:
-    st.info("No recommendations found. Try a different movie or adjust your favourites.", icon="🤔")
-
-
-# ──────────────────────────────────────────────
-# Debug panel (hidden by default)
-# ──────────────────────────────────────────────
-
-with st.expander("🔧 Debug – Raw Data Inspector", expanded=False):
-    tab1, tab2, tab3 = st.tabs(["Movies", "Ratings", "Session State"])
-
-    with tab1:
-        st.dataframe(movies_df[["movie_id", "title", "year", "genre"]], use_container_width=True)
-
-    with tab2:
-        if not ratings_df.empty:
-            st.dataframe(ratings_df, use_container_width=True)
-        else:
-            st.caption("No ratings data loaded.")
-
-    with tab3:
-        # Show session state minus the large DataFrames
-        safe_state = {
-            k: v for k, v in st.session_state.items()
-            if k != "recommendations"
-        }
-        st.json(safe_state)
-        if st.session_state.get("recommendations") is not None:
-            st.dataframe(st.session_state["recommendations"], use_container_width=True)
+    st.info("🤔 No recommendations found. Try a different search or add more favourites.")
