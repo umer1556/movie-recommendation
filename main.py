@@ -217,6 +217,12 @@ st.markdown("""
 [data-testid="StyledFullScreenButton"] {
     display: none !important;
 }
+
+/* Stop Streamlit markdown container from adding padding around cards */
+[data-testid="stMarkdownContainer"] > div {
+    line-height: 0;
+    font-size: 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
