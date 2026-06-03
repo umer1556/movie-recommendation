@@ -105,11 +105,12 @@ st.markdown("""
   }
 
   /* ── Movie cards ── */
- .movie-card-wrap {
+.movie-card-wrap {
     border-radius: 6px;
     overflow: hidden;
-    background: transparent;
+    background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
     max-width: 100%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
   .movie-card-wrap:hover {
