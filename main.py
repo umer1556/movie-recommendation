@@ -105,22 +105,25 @@ st.markdown("""
   }
 
   /* ── Movie cards ── */
-  .movie-card-wrap {
+ .movie-card-wrap {
     border-radius: 6px;
     overflow: hidden;
-    background: var(--nf-card);
+    background: transparent;
+    max-width: 100%;
     transition: transform 0.25s ease, box-shadow 0.25s ease;
-  }
+}
   .movie-card-wrap:hover {
     transform: scale(1.07);
     box-shadow: 0 12px 36px rgba(0,0,0,0.8);
   }
-  .movie-card-img {
+.movie-card-img {
     width: 100%;
-    aspect-ratio: 2/3;
+    height: 240px;
+    max-height: 240px;
     object-fit: cover;
+    object-position: center top;
     display: block;
-  }
+}
   .movie-card-overlay {
     position: absolute;
     bottom: 0; left: 0; right: 0;
