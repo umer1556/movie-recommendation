@@ -200,6 +200,20 @@ st.markdown("""
   }
 
   hr { border-color: #333 !important; }
+
+  /* Disable Streamlit's click-to-fullscreen on images */
+[data-testid="stImage"] img {
+    pointer-events: none !important;
+    cursor: default !important;
+    border-radius: 6px !important;
+    width: 100% !important;
+}
+
+/* Hide the expand button that appears on hover */
+[data-testid="stImage"] button,
+[data-testid="StyledFullScreenButton"] {
+    display: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
