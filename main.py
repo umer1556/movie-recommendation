@@ -220,9 +220,11 @@ st.markdown("""
 }
 
 /* Stop Streamlit markdown container from adding padding around cards */
-[data-testid="stMarkdownContainer"] > div {
+/* Only target markdown containers holding movie card images */
+.movie-card-wrap img {
+    display: block;
     line-height: 0;
-    font-size: 0;
+    vertical-align: bottom;
 }
 </style>
 """, unsafe_allow_html=True)
