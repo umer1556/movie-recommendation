@@ -122,7 +122,8 @@ def load_ratings(filepath: str = RATINGS_PATH) -> pd.DataFrame:
         return pd.DataFrame(columns=["user_id", "movie_id", "rating"])
 
     # Clip ratings to a sensible range
-    df["rating"] = df["rating"].clip(0.5, 5.0)
+    df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
+    df.dropna(subset=["rating"], inplace=True)
 
     return df
 
